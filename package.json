@@ -1,0 +1,35 @@
+{
+  "name": "podium-api-sample-messages",
+  "version": "1.1.0",
+  "description": "A Podium demo app for CRUD messages",
+  "main": "index.js",
+  "scripts": {
+    "lint": "yarn eslint . --ext .js",
+    "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
+    "format": "prettier --write .",
+    "format:check": "prettier --list-different '**/*.{js,md,json,yml}'"
+  },
+  "type": "module",
+  "repository": "https://github.com/podium/podium-api-sample-messages.git",
+  "author": "Jairo Franco",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/podium/podium-api-sample-messages/issues"
+  },
+  "homepage": "https://github.com/podium/podium-api-sample-messages#readme",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.490.0",
+    "@supabase/supabase-js": "^2.84.0",
+    "axios": "^0.27.2",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^16.0.1",
+    "eslint": "^8.45.0",
+    "node-fetch": "^3.2.4",
+    "open": "^8.4.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "jest": "^29.6.1",
+    "prettier": "^3.3.3"
+  }
+}
