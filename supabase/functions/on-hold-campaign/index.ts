@@ -44,7 +44,8 @@ async function sendPodiumMessage(token: string, phoneNumber: string): Promise<bo
   const payload = {
     locationUid: PODIUM_LOCATION_UID,
     body: ON_HOLD_REMINDER_MESSAGE,
-    channel: { type: "phone", identifier: phoneNumber },
+    //For now, Roly's phone number
+    channel: { type: "phone", identifier: "7866129167" },
   };
 
   const res = await fetch(`${PODIUM_BASE_URL}/messages`, {
