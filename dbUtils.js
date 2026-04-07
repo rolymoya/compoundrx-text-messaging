@@ -184,24 +184,6 @@ export async function saveOnHoldPatient(patientId, phoneNumber, firstName) {
   }
 }
 
-// Remove a patient from the on-hold table (e.g., Podium STOP opt-out)
-export async function deleteOnHoldPatient(phoneNumber) {
-  try {
-    const { data, error } = await supabase
-      .from('on_hold_patients')
-      .delete()
-      .eq('phone_number', phoneNumber)
-      .select();
-
-    if (error) throw error;
-    console.log(`Deleted on-hold patient with phone: ${phoneNumber}`);
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error deleting on-hold patient:', error.message);
-    return { success: false, error: error.message };
-  }
-}
-
 // Get templates for an NPI (falls back to default group)
 export async function getTemplatesForNpi(npi) {
   try {

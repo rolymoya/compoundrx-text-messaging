@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import { eventParser, getMessage, isOnHoldEvent } from './parser.js';
 import { readIdsFromS3Env } from './s3FileReader.js';
-import { isDuplicateMessage, saveMessage, getTemplatesForNpi, saveOnHoldPatient, deleteOnHoldPatient } from './dbUtils.js';
+import { isDuplicateMessage, saveMessage, getTemplatesForNpi, saveOnHoldPatient } from './dbUtils.js';
 
 const baseUrl = "https://api.podium.com/v4/";
 const refreshToken = process.env.REFRESHTOKEN;
@@ -10,16 +10,6 @@ const clientSecret = process.env.CLIENTSECRET;
 
 export const handler = async (event, context) => {
 
-  // --- API Gateway event (Podium STOP webhook) ---
-  if (event.body) {
-    const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
-
-    if (body.action === 'podium_stop_webhook') {
-      return handleStopWebhook(body);
-    }
-  }
-
-  // --- SQS event (PioneerRx) ---
   let messageBody;
 
   try{
@@ -91,27 +81,6 @@ export const handler = async (event, context) => {
     statusCode: 200,
   };
 };
-
-// Handle Podium STOP webhook — remove patient from on-hold table
-async function handleStopWebhook(body) {
-  // TODO: Adjust based on actual Podium webhook payload shape
-  const phoneNumber = body.phoneNumber || body.phone_number;
-
-  if (!phoneNumber) {
-    console.error('STOP webhook missing phone number');
-    return { statusCode: 400, body: JSON.stringify({ error: 'Missing phone number' }) };
-  }
-
-  console.log(`STOP received for ${phoneNumber}, removing from on-hold list`);
-  const result = await deleteOnHoldPatient(phoneNumber);
-
-  if (!result.success) {
-    console.error('Failed to delete on-hold patient:', result.error);
-    return { statusCode: 500, body: JSON.stringify({ error: result.error }) };
-  }
-
-  return { statusCode: 200, body: JSON.stringify({ removed: phoneNumber }) };
-}
 
 async function getTokenID() {
   const bodyData = {

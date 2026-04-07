@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -13,6 +13,13 @@ const PODIUM_BASE_URL = "https://api.podium.com/v4";
 const ON_HOLD_REMINDER_MESSAGE =
   "You have 1 or more prescriptions on hold at CompoundRx Pharmacy. Please reply or call to let us know how you'd like to proceed.";
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 async function getPodiumToken(): Promise<string | null> {
   try {
     const res = await fetch("https://accounts.podium.com/oauth/token", {
@@ -25,8 +32,8 @@ async function getPodiumToken(): Promise<string | null> {
         refresh_token: PODIUM_REFRESH_TOKEN,
       }),
     });
-    const json = await res.json();
-    return json.access_token ?? null;
+    const data = await res.json();
+    return data.access_token ?? null;
   } catch (err) {
     console.error("Error retrieving Podium token:", err);
     return null;
@@ -59,64 +66,91 @@ async function sendPodiumMessage(token: string, phoneNumber: string): Promise<bo
   return true;
 }
 
-serve(async (_req) => {
+async function runCampaign(supabase: SupabaseClient): Promise<Response> {
+  console.log("Starting on-hold campaign...");
+
+  const { data: patients, error } = await supabase
+    .from("on_hold_patients")
+    .select("*");
+
+  if (error) {
+    console.error("Failed to fetch on-hold patients:", error);
+    return json({ error: error.message }, 500);
+  }
+
+  if (!patients || patients.length === 0) {
+    console.log("No on-hold patients to message.");
+    return json({ message: "No patients to message" });
+  }
+
+  const token = await getPodiumToken();
+  if (!token) {
+    return json({ error: "Failed to get Podium token" }, 401);
+  }
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const patient of patients) {
+    try {
+      const ok = await sendPodiumMessage(token, patient.phone_number);
+      if (ok) sent++;
+      else failed++;
+    } catch (err) {
+      failed++;
+      console.error(`Error sending to ${patient.phone_number}:`, err);
+    }
+  }
+
+  console.log(`On-hold campaign complete: ${sent} sent, ${failed} failed`);
+  return json({ sent, failed });
+}
+
+async function handleStop(supabase: SupabaseClient, req: Request): Promise<Response> {
+  const body = await req.json().catch(() => ({}));
+  console.log("Podium STOP webhook received:", JSON.stringify(body));
+
+  // TODO: Adjust based on the actual Podium webhook payload shape
+  const phoneNumber = body.phoneNumber || body.phone_number;
+
+  if (!phoneNumber) {
+    console.error("STOP webhook missing phone number");
+    return json({ error: "Missing phone number" }, 400);
+  }
+
+  const { data, error } = await supabase
+    .from("on_hold_patients")
+    .delete()
+    .eq("phone_number", phoneNumber)
+    .select();
+
+  if (error) {
+    console.error("Failed to delete on-hold patient:", error);
+    return json({ error: error.message }, 500);
+  }
+
+  console.log(`Removed ${data?.length ?? 0} on-hold record(s) for ${phoneNumber}`);
+  return json({ removed: phoneNumber, count: data?.length ?? 0 });
+}
+
+serve(async (req) => {
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   try {
-    console.log("Starting on-hold campaign...");
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { pathname } = new URL(req.url);
 
-    const { data: patients, error } = await supabase
-      .from("on_hold_patients")
-      .select("*");
-
-    if (error) {
-      console.error("Failed to fetch on-hold patients:", error);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+    // Podium STOP webhook → /on-hold-campaign/stop
+    if (pathname.endsWith("/stop")) {
+      return await handleStop(supabase, req);
     }
 
-    if (!patients || patients.length === 0) {
-      console.log("No on-hold patients to message.");
-      return new Response(
-        JSON.stringify({ message: "No patients to message" }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const token = await getPodiumToken();
-    if (!token) {
-      return new Response(
-        JSON.stringify({ error: "Failed to get Podium token" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    let sent = 0;
-    let failed = 0;
-
-    for (const patient of patients) {
-      try {
-        const ok = await sendPodiumMessage(token, patient.phone_number);
-        if (ok) sent++;
-        else failed++;
-      } catch (err) {
-        failed++;
-        console.error(`Error sending to ${patient.phone_number}:`, err);
-      }
-    }
-
-    console.log(`On-hold campaign complete: ${sent} sent, ${failed} failed`);
-    return new Response(JSON.stringify({ sent, failed }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    // Default (cron trigger) → /on-hold-campaign
+    return await runCampaign(supabase);
   } catch (error) {
-    console.error("Campaign error:", error);
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("Edge function error:", error);
+    return json({ error: (error as Error).message }, 500);
   }
 });
