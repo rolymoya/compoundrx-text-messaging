@@ -4,7 +4,7 @@
 
 SELECT cron.schedule(
     'trigger-on-hold-campaign',
-    '0 10 * * 4',  -- Every Thursday at 10:00 AM UTC
+    '0 14 * * 4',  -- Every Thursday at 2:00 PM UTC (10:00 AM EST)
     $$
     SELECT net.http_post(
         url := 'https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co/functions/v1/on-hold-campaign',
