@@ -53,6 +53,11 @@ export function getMessage(condition, params, templates = null) {
     return renderTemplate(template, params);
 }
 
+// TODO: Update this once the actual on-hold event shape is known
+export function isOnHoldEvent(condition) {
+    return condition && condition.toLowerCase().includes('onhold');
+}
+
 function getMessageId(rxTransactionStatus) {
     switch (rxTransactionStatus) {
         case 'WaitingforCheck':
