@@ -17,6 +17,7 @@ export function eventParser(event) {
             const condition = `${eventType}_${rxTransactionStatus}_${priorityType}`
 
             const firstName = eventBody?.data?.Body?.Patient?.Name?.FirstName;
+            const lastName = eventBody?.data?.Body?.Patient?.Name?.LastName;
             const patientPhoneNumber = eventBody?.data?.Body?.Patient?.PhoneNumbers?.PhoneNumber[0]?.AreaCode + eventBody?.data?.Body?.Patient?.PhoneNumbers?.PhoneNumber[0]?.Number;
             const trackingLink = eventBody?.data?.Body?.Rx?.TrackingNumber;
             const directionsLink = '8740 N Kendall Drive Suite 106, Miami, FL 33176';
@@ -26,6 +27,8 @@ export function eventParser(event) {
 
             messageBody["condition"] = condition;
             messageBody["templateParams"] = { firstName, trackingLink, directionsLink };
+            messageBody["firstName"] = firstName;
+            messageBody["lastName"] = lastName;
             messageBody["phoneNumber"] = patientPhoneNumber;
             messageBody["prescriberNpi"] = prescriberNpi;
             messageBody["patientId"] = eventBody?.data?.Body?.Patient?.Identification?.PatientPioneerRxID;
