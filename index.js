@@ -82,6 +82,33 @@ export const handler = async (event, context) => {
   };
 };
 
+async function syncContact(token, phoneNumber, firstName, lastName, prescriberNpi) {
+  const name = [firstName, lastName].filter(Boolean).join(' ');
+
+  const contactPayload = {
+    name,
+    phoneNumber,
+    locations: [{ uid: "019499ac-a1e9-7ede-b6e8-f54fdabf0ae1" }],
+    attributes: [{ uid: "019cd36c-639e-7ee9-9f21-a06b1c3cf2e5", value: prescriberNpi}]
+  };
+
+  const response = await fetch(`${baseUrl}contacts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(contactPayload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('Podium contact sync error:', errorData);
+  } else {
+    console.log(`Contact synced for ${name} (${phoneNumber})`);
+  }
+}
+
 async function getTokenID() {
   const bodyData = {
     client_id: clientID,
@@ -153,11 +180,14 @@ async function callPodium(messageBody){
     }
     
     else{
-      const saveMsg = await saveMessage(messageBody); 
-  
+      const saveMsg = await saveMessage(messageBody);
+
       if (!saveMsg.success) {
         console.error('Failed to save message:', saveMsg.error);
       }
+
+      syncContact(token, messageBody.phoneNumber, messageBody.firstName, messageBody.lastName, messageBody.prescriberNpi)
+        .catch(err => console.error('Contact sync failed (non-critical):', err));
     }
 
     return {
