@@ -137,8 +137,8 @@ async function runCampaign(supabase: SupabaseClient): Promise<Response> {
 
 async function handleStop(supabase: SupabaseClient, req: Request): Promise<Response> {
   const body = await req.json().catch(() => ({}));
-  console.log("Podium STOP webhook received:", JSON.stringify(body));
-  console.log("phone number", JSON.stringify(body?.conversation?.channel?.identifier))
+  // console.log("Podium STOP webhook received:", JSON.stringify(body));
+  // console.log("phone number", JSON.stringify(body?.conversation?.channel?.identifier))
 
   const phoneNumber = body?.conversation?.channel?.identifier;
   const message: string= body?.body;
