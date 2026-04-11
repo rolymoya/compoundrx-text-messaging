@@ -39,6 +39,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
+
 async function getPodiumToken(): Promise<string | null> {
   try {
     const res = await fetch("https://accounts.podium.com/oauth/token", {
