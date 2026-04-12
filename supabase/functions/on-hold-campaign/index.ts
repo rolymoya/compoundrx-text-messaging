@@ -12,13 +12,15 @@ const PODIUM_LOCATION_UID = Deno.env.get("PODIUM_LOCATION_UID")!;
 const PODIUM_BASE_URL = "https://api.podium.com/v4";
 const ON_HOLD_REMINDER_FALLBACK =
     "You have 1 or more prescriptions on hold at CompoundRx Pharmacy. Please reply or call to let us know how you'd like to proceed.";
+const UNSUBSCRIBE_CONFIRMATION =
+    "You've been removed from on-hold prescription notifications. Contact us anytime if you need help.";
 
 async function getOnHoldTemplate(supabase: SupabaseClient): Promise<string | null> {
   const { data, error } = await supabase
-    .from("messaging_groups")
-    .select("templates")
-    .eq("name", "default")
-    .single();
+      .from("messaging_groups")
+      .select("templates")
+      .eq("name", "default")
+      .single();
 
   if (error || !data) {
     console.error("Failed to fetch On_Hold_Campaign template:", error);
@@ -140,15 +142,18 @@ async function handleStop(supabase: SupabaseClient, req: Request): Promise<Respo
   // console.log("Podium STOP webhook received:", JSON.stringify(body));
   // console.log("phone number", JSON.stringify(body?.conversation?.channel?.identifier))
 
-  const phoneNumber = body?.conversation?.channel?.identifier;
-  const message: string= body?.body;
+  const phoneNumber = body?.data?.conversation?.channel?.identifier;
+  const message: string= body?.data?.body;
+
+  // console.log(phoneNumber);
+  // console.log(message);
 
   if (!phoneNumber) {
     console.error("STOP webhook missing phone number");
     return json({ error: "Missing phone number" }, 400);
   }
 
-  if (!message || !message.includes("STOP")) {
+  if (!message || !message.toLowerCase().includes("not interesteds")) {
     console.log("Message not STOP");
     return json({Success: "All good"}, 200);
   }
@@ -165,6 +170,14 @@ async function handleStop(supabase: SupabaseClient, req: Request): Promise<Respo
   }
 
   console.log(`Removed ${data?.length ?? 0} on-hold record(s) for ${phoneNumber}`);
+
+  const token = await getPodiumToken();
+  if (token) {
+    await sendPodiumMessage(token, phoneNumber, UNSUBSCRIBE_CONFIRMATION);
+  } else {
+    console.error("Failed to get Podium token for unsubscribe confirmation message");
+  }
+
   return json({ removed: phoneNumber, count: data?.length ?? 0 });
 }
 

@@ -167,7 +167,7 @@ export async function saveOnHoldPatient(patientId, phoneNumber, firstName) {
       .upsert(
         {
           patient_id: patientId,
-          phone_number: phoneNumber,
+          phone_number: "1" + phoneNumber,
           first_name: firstName,
           created_at: new Date().toISOString()
         },
