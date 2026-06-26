@@ -158,6 +158,32 @@ async function updateRecord(tableName, id, updates) {
   }
 }
 
+// Save a patient with an on-hold prescription.
+// Upsert resets created_at so the 1-month TTL restarts on repeat on-hold events.
+export async function saveOnHoldPatient(patientId, phoneNumber, firstName) {
+  try {
+    const { data, error } = await supabase
+      .from('on_hold_patients')
+      .upsert(
+        {
+          patient_id: patientId,
+          phone_number: "1" + phoneNumber,
+          first_name: firstName,
+          created_at: new Date().toISOString()
+        },
+        { onConflict: 'patient_id' }
+      )
+      .select();
+
+    if (error) throw error;
+    console.log(`Saved on-hold patient: ${patientId}`);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error saving on-hold patient:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 // Get templates for an NPI (falls back to default group)
 export async function getTemplatesForNpi(npi) {
   try {

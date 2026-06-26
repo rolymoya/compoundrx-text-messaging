@@ -22,6 +22,8 @@ export function eventParser(event) {
             const trackingLink = eventBody?.data?.Body?.Rx?.TrackingNumber;
             const directionsLink = '8740 N Kendall Drive Suite 106, Miami, FL 33176';
             const prescriberNpi = eventBody?.data?.Body?.Prescribers?.Prescriber[0]?.Identification?.NPI;
+            const prescriberFirstName = eventBody?.data?.Body?.Prescribers?.Prescriber[0]?.Name?.FirstName;
+            const prescriberLastName = eventBody?.data?.Body?.Prescribers?.Prescriber[0]?.Name?.LastName;
             const notifyTypeText = eventBody?.data?.Body?.Patient?.RxNotifyTypeText;
             const rxId = eventBody?.data?.Body?.Rx?.RxPioneerRxID;
 
@@ -31,6 +33,8 @@ export function eventParser(event) {
             messageBody["lastName"] = lastName;
             messageBody["phoneNumber"] = patientPhoneNumber;
             messageBody["prescriberNpi"] = prescriberNpi;
+            messageBody["prescriberFirstName"] = prescriberFirstName;
+            messageBody["prescriberLastName"] = prescriberLastName;
             messageBody["patientId"] = eventBody?.data?.Body?.Patient?.Identification?.PatientPioneerRxID;
             messageBody["messageId"] = getMessageId(rxTransactionStatus);
             messageBody["notifyTypeText"] = notifyTypeText;
@@ -47,13 +51,18 @@ export function eventParser(event) {
 
 function renderTemplate(template, params) {
     return template.replace(/\{(\w+)\}/g, (_, key) => params[key] ?? '');
-  }
+}
 
 export function getMessage(condition, params, templates = null) {
     const templateSource = templates || defaultTemplates;
     const template = templateSource[condition];
     if (!template) throw new Error(`No template found for ${condition}`);
     return renderTemplate(template, params);
+}
+
+// TODO: Update this once the actual on-hold event shape is known
+export function isOnHoldEvent(condition) {
+    return condition && condition.toLowerCase().includes('onhold');
 }
 
 function getMessageId(rxTransactionStatus) {
