@@ -43,7 +43,7 @@ export const handler = async (event, context) => {
       templates
     );
   } catch (error) {
-    console.error("Error generating message:", error);
+    console.error(`Error generating message for ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}:`, error);
     return {
       statusCode: 200,
     };
