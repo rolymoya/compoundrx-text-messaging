@@ -18,7 +18,9 @@ export function eventParser(event) {
 
             const firstName = eventBody?.data?.Body?.Patient?.Name?.FirstName;
             const lastName = eventBody?.data?.Body?.Patient?.Name?.LastName;
-            const patientPhoneNumber = eventBody?.data?.Body?.Patient?.PhoneNumbers?.PhoneNumber[0]?.AreaCode + eventBody?.data?.Body?.Patient?.PhoneNumbers?.PhoneNumber[0]?.Number;
+            const areaCode = eventBody?.data?.Body?.Patient?.PhoneNumbers?.PhoneNumber[0]?.AreaCode;
+            const number = eventBody?.data?.Body?.Patient?.PhoneNumbers?.PhoneNumber[0]?.Number;
+            const patientPhoneNumber = `+1${areaCode}${number}`;
             const trackingLink = eventBody?.data?.Body?.Rx?.TrackingNumber;
             const directionsLink = '8740 N Kendall Drive Suite 106, Miami, FL 33176';
             const prescriberNpi = eventBody?.data?.Body?.Prescribers?.Prescriber[0]?.Identification?.NPI;

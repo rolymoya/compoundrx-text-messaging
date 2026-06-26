@@ -74,7 +74,7 @@ async function syncContact(token, phoneNumber, firstName, lastName, prescriberNp
   const contactPayload = {
     name,
     phoneNumber,
-    locations: [{ uid: "019499ac-a1e9-7ede-b6e8-f54fdabf0ae1" }],
+    locations: ["019499ac-a1e9-7ede-b6e8-f54fdabf0ae1"],
     attributes: [{ uid: "019cd36c-639e-7ee9-9f21-a06b1c3cf2e5", value: prescriberNpi}]
   };
 
