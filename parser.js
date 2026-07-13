@@ -2,22 +2,25 @@ import { templates as defaultTemplates } from './templates.js';
 
 export function eventParser(event) {
 
-    let messageBody = {};
+    const messageBodies = [];
 
     for (const record of event.Records) {
+        const messageBody = {};
         try {
             // The SQS message body is a JSON string, so parse it
 
             const eventBody = JSON.parse(record.body);
 
-            const eventType = eventBody?.data?.MessageHeader?.InitiatingEventText; //.toUppercase().split(' ').join('_'); 
+            const firstName = eventBody?.data?.Body?.Patient?.Name?.FirstName;
+            const lastName = eventBody?.data?.Body?.Patient?.Name?.LastName;
+            messageBody["firstName"] = firstName;
+            messageBody["lastName"] = lastName;
+
+            const eventType = eventBody?.data?.MessageHeader?.InitiatingEventText; //.toUppercase().split(' ').join('_');
             const priorityType = eventBody?.data?.Body?.Rx?.PriorityTypeText;
             const rxTransactionStatus = eventBody?.data?.Body?.Rx?.CurrentRxTransactionStatusText.split(' ').join('');
 
             const condition = `${eventType}_${rxTransactionStatus}_${priorityType}`
-
-            const firstName = eventBody?.data?.Body?.Patient?.Name?.FirstName;
-            const lastName = eventBody?.data?.Body?.Patient?.Name?.LastName;
             const areaCode = eventBody?.data?.Body?.Patient?.PhoneNumbers?.PhoneNumber[0]?.AreaCode;
             const number = eventBody?.data?.Body?.Patient?.PhoneNumbers?.PhoneNumber[0]?.Number;
             const patientPhoneNumber = `+1${areaCode}${number}`;
@@ -29,8 +32,6 @@ export function eventParser(event) {
 
             messageBody["condition"] = condition;
             messageBody["templateParams"] = { firstName, trackingLink, directionsLink };
-            messageBody["firstName"] = firstName;
-            messageBody["lastName"] = lastName;
             messageBody["phoneNumber"] = patientPhoneNumber;
             messageBody["prescriberNpi"] = prescriberNpi;
             messageBody["patientId"] = eventBody?.data?.Body?.Patient?.Identification?.PatientPioneerRxID;
@@ -38,12 +39,15 @@ export function eventParser(event) {
             messageBody["notifyTypeText"] = notifyTypeText;
             messageBody["rxId"] = rxId
 
+            messageBodies.push(messageBody);
+
         } catch (error) {
-            throw error;
+            // Skip the bad record but keep processing the rest of the batch
+            console.error(`Error parsing SQS record: | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`, error);
         }
     }
 
-    return messageBody;
+    return messageBodies;
 
 }
 

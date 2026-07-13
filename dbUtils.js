@@ -1,89 +1,62 @@
 import { createClient } from '@supabase/supabase-js';
-const MESSAGE_TYPE_SHIPPING = 3;
 
 // Initialize Supabase client
 export async function isDuplicateMessage(messageBody) {
-  if(messageBody.messageId === MESSAGE_TYPE_SHIPPING){
-    return checkDuplicateShippingMessage(messageBody);
-  }
+  const patientTag = ` | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`;
   try {
     const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
-    
-    const { data, error } = await supabase
-      .from('recent_messages')
-      .select('*')
-      .eq('patient_id', messageBody.patientId)
-      .eq('message_id', messageBody.messageId)
-      .gte('created_at', fiveHoursAgo);
-    
-    if (error) {
-      console.error('Database error checking duplicate:', error);
-      throw error; // Let caller handle the error
-    }
-    
-    return data.length > 0; 
-    
-  } catch (error) {
-    console.error('Error checking for duplicate message:', error.message);
-    throw error; // Re-throw so caller knows something went wrong
-  }
-}
 
-export async function checkDuplicateShippingMessage(messageBody){
-  try {
     const { data, error } = await supabase
       .from('recent_messages')
       .select('*')
       .eq('patient_id', messageBody.patientId)
       .eq('rx_id', messageBody.rxId)
-      .eq('message_id', 3);
+      .eq('condition', messageBody.condition)
+      .gte('created_at', fiveHoursAgo);
 
     if (error) {
-      console.error('Database error checking duplicate:', error);
+      console.error(`Database error checking duplicate:${patientTag}`, error);
       throw error; // Let caller handle the error
     }
 
-    if (data.length > 0) {
-      console.log('Duplicate shipping message found.');
-      return true;
-    }
-
-    return false;
+    return data.length > 0;
 
   } catch (error) {
-    console.error('Error checking for duplicate message:', error.message);
+    console.error(`Error checking for duplicate message:${patientTag}`, error.message);
     throw error; // Re-throw so caller knows something went wrong
   }
-
 }
+
 const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_API_KEY
   );
 
-//checks if a record exists in the recent_messages table that was created within the last 5 hours and has a specific patient_id and message_id
+//checks if a record exists in the recent_messages table that was created within the last 5 hours and has a specific patient_id, rx_id and condition
 
 
 export async function saveMessage(messageBody){
+  const patientTag = ` | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`;
   try {
       const message = {
           patient_id: messageBody.patientId,
           message_id: messageBody.messageId,
-          rx_id: messageBody.rxId
+          rx_id: messageBody.rxId,
+          condition: messageBody.condition
       };
 
-      console.log(`Saving message: ${JSON.stringify(message)} to recent_messages table`);
+      console.log(`Saving message: ${JSON.stringify(message)} to recent_messages table${patientTag}`);
 
       const result = await saveRecord('recent_messages', message);
-      
+
       if (!result.success) {
-          console.error('Failed to save message:', result.error);
+          console.error(`Failed to save message:${patientTag}`, result.error);
       }
-      
+
       return result;
 
     } catch (error) {
-        console.error('Error in saveMessage:', error);
+        console.error(`Error in saveMessage:${patientTag}`, error);
         return { success: false, error: error.message };
     }
 }
@@ -159,7 +132,8 @@ async function updateRecord(tableName, id, updates) {
 }
 
 // Get templates for an NPI (falls back to default group)
-export async function getTemplatesForNpi(npi) {
+export async function getTemplatesForNpi(npi, firstName, lastName) {
+  const patientTag = ` | Patient: ${firstName ?? ''} ${lastName ?? ''}`;
   try {
     let templates = null;
 
@@ -181,7 +155,7 @@ export async function getTemplatesForNpi(npi) {
 
         if (!groupError && group) {
           templates = group.templates;
-          console.log(`Using templates from assigned group for NPI: ${npi}`);
+          console.log(`Using templates from assigned group for NPI: ${npi}${patientTag}`);
         }
       }
     }
@@ -195,17 +169,17 @@ export async function getTemplatesForNpi(npi) {
         .single();
 
       if (defaultError) {
-        console.error('Error fetching default templates:', defaultError);
+        console.error(`Error fetching default templates:${patientTag}`, defaultError);
         return null;
       }
 
       templates = defaultGroup.templates;
-      console.log('Using default templates');
+      console.log(`Using default templates${patientTag}`);
     }
 
     return templates;
   } catch (error) {
-    console.error('Error fetching templates for NPI:', error.message);
+    console.error(`Error fetching templates for NPI:${patientTag}`, error.message);
     return null;
   }
 }
