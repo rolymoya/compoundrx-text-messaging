@@ -1,11 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-const MESSAGE_TYPE_SHIPPING = 3;
 
 // Initialize Supabase client
 export async function isDuplicateMessage(messageBody) {
-  if (messageBody.messageId === MESSAGE_TYPE_SHIPPING) {
-    return checkDuplicateShippingMessage(messageBody);
-  }
   const patientTag = ` | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`;
   try {
     const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
@@ -24,35 +20,6 @@ export async function isDuplicateMessage(messageBody) {
     }
 
     return data.length > 0;
-
-  } catch (error) {
-    console.error(`Error checking for duplicate message:${patientTag}`, error.message);
-    throw error; // Re-throw so caller knows something went wrong
-  }
-}
-
-// Shipping messages dedupe indefinitely: one shipping text per patient/rx, ever
-export async function checkDuplicateShippingMessage(messageBody) {
-  const patientTag = ` | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`;
-  try {
-    const { data, error } = await supabase
-      .from('recent_messages')
-      .select('*')
-      .eq('patient_id', messageBody.patientId)
-      .eq('rx_id', messageBody.rxId)
-      .eq('message_id', MESSAGE_TYPE_SHIPPING);
-
-    if (error) {
-      console.error(`Database error checking duplicate:${patientTag}`, error);
-      throw error; // Let caller handle the error
-    }
-
-    if (data.length > 0) {
-      console.log(`Duplicate shipping message found.${patientTag}`);
-      return true;
-    }
-
-    return false;
 
   } catch (error) {
     console.error(`Error checking for duplicate message:${patientTag}`, error.message);
