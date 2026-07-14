@@ -8,6 +8,21 @@ const refreshToken = process.env.REFRESHTOKEN;
 const clientID = process.env.CLIENTID;
 const clientSecret = process.env.CLIENTSECRET;
 
+// TCPA-compliant texting window: only send between 8am and 9pm pharmacy-local
+// time. Also filters out the duplicate shipment events PioneerRx replays at 4am.
+const PHARMACY_TIMEZONE = "America/New_York";
+const SEND_WINDOW_START_HOUR = 8;  // 8am
+const SEND_WINDOW_END_HOUR = 21;   // 9pm
+
+function isOutsideSendWindow(date = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat("en-US", {
+    timeZone: PHARMACY_TIMEZONE,
+    hour: "numeric",
+    hourCycle: "h23",
+  }).format(date));
+  return hour < SEND_WINDOW_START_HOUR || hour >= SEND_WINDOW_END_HOUR;
+}
+
 export const handler = async (event, context) => {
 
   let messageBodies;
@@ -52,6 +67,13 @@ async function processMessage(messageBody) {
   }
 
   const patientTag = ` | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`;
+
+  if (isOutsideSendWindow()) {
+    console.log(`Event received outside ${SEND_WINDOW_START_HOUR}:00-${SEND_WINDOW_END_HOUR}:00 ${PHARMACY_TIMEZONE} send window, dropping message.${patientTag}`);
+    return {
+      statusCode: 200,
+    };
+  }
 
   // Fetch templates for this NPI (falls back to default)
   let templates;
