@@ -8,12 +8,27 @@ const refreshToken = process.env.REFRESHTOKEN;
 const clientID = process.env.CLIENTID;
 const clientSecret = process.env.CLIENTSECRET;
 
+// TCPA-compliant texting window: only send between 8am and 9pm pharmacy-local
+// time. Also filters out the duplicate shipment events PioneerRx replays at 4am.
+const PHARMACY_TIMEZONE = "America/New_York";
+const SEND_WINDOW_START_HOUR = 8;  // 8am
+const SEND_WINDOW_END_HOUR = 21;   // 9pm
+
+function isOutsideSendWindow(date = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat("en-US", {
+    timeZone: PHARMACY_TIMEZONE,
+    hour: "numeric",
+    hourCycle: "h23",
+  }).format(date));
+  return hour < SEND_WINDOW_START_HOUR || hour >= SEND_WINDOW_END_HOUR;
+}
+
 export const handler = async (event, context) => {
 
-  let messageBody;
+  let messageBodies;
 
   try{
-    messageBody = eventParser(event);
+    messageBodies = eventParser(event);
   }catch(error){
     console.error("Error while parsing event: ", error);
     return {
@@ -21,32 +36,66 @@ export const handler = async (event, context) => {
     };
   }
 
+  let failureCount = 0;
+
+  for (const messageBody of messageBodies) {
+    try {
+      await processMessage(messageBody);
+    } catch (error) {
+      console.error(`Error processing message: | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`, error);
+      failureCount++;
+    }
+  }
+
+  if (failureCount > 0) {
+    // Fail the invocation so SQS redelivers the batch; already-sent
+    // messages are skipped on retry by the duplicate check
+    throw new Error(`${failureCount} of ${messageBodies.length} messages failed to process`);
+  }
+
+  return {
+    statusCode: 200,
+  };
+};
+
+async function processMessage(messageBody) {
+
   if (!messageBody || !messageBody.condition) {
     return {
       statusCode: 200,
     };
   }
 
-  // Check if this is an on-hold event — save patient and return
+  const patientTag = ` | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`;
+
+  // Check if this is an on-hold event — save patient and return. Not gated by
+  // the send window since this only persists state, it doesn't send a text.
   if (isOnHoldEvent(messageBody.condition)) {
-    console.log(`On-hold event detected for patient ${messageBody.patientId}`);
+    console.log(`On-hold event detected for patient ${messageBody.patientId}${patientTag}`);
     const result = await saveOnHoldPatient(
       messageBody.patientId,
       messageBody.phoneNumber,
       messageBody.templateParams?.firstName
     );
     if (!result.success) {
-      console.error('Failed to save on-hold patient:', result.error);
+      console.error(`Failed to save on-hold patient:${patientTag}`, result.error);
     }
     return { statusCode: 200 };
+  }
+
+  if (isOutsideSendWindow()) {
+    console.log(`Event received outside ${SEND_WINDOW_START_HOUR}:00-${SEND_WINDOW_END_HOUR}:00 ${PHARMACY_TIMEZONE} send window, dropping message.${patientTag}`);
+    return {
+      statusCode: 200,
+    };
   }
 
   // Fetch templates for this NPI (falls back to default)
   let templates;
   try {
-    templates = await getTemplatesForNpi(messageBody.prescriberNpi);
+    templates = await getTemplatesForNpi(messageBody.prescriberNpi, messageBody.firstName, messageBody.lastName);
   } catch (error) {
-    console.error("Error fetching templates:", error);
+    console.error(`Error fetching templates:${patientTag}`, error);
   }
 
   // Generate the message using fetched templates (or fallback to hardcoded)
@@ -57,30 +106,31 @@ export const handler = async (event, context) => {
         templates
     );
   } catch (error) {
-    console.error("Error generating message:", error);
+    console.error(`Error generating message for ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}:`, error);
     return {
       statusCode: 200,
     };
   }
 
   if (messageBody.notifyTypeText == "Yes") {
+    console.log(`message body for response:${patientTag} ` + JSON.stringify(messageBody));
+
     const isDupe = await isDuplicateMessage(messageBody);
 
     if (isDupe) {
-      console.log("Duplicate message detected, not sending to Podium.");
+      console.log(`Duplicate message detected, not sending to Podium.${patientTag}`);
       return {
         statusCode: 200,
       };
     }
 
-    console.log("message body for response: " + JSON.stringify(messageBody));
     return callPodium(messageBody);
   }
 
   return {
     statusCode: 200,
   };
-};
+}
 
 async function syncContact(token, phoneNumber, firstName, lastName, prescriberNpi, prescriberFirstName, prescriberLastName) {
   console.info("Syncing contact to Podium: ", phoneNumber, firstName, lastName, prescriberNpi)
@@ -89,7 +139,7 @@ async function syncContact(token, phoneNumber, firstName, lastName, prescriberNp
 
   const contactPayload = {
     name,
-    phoneNumber: "+1" + phoneNumber,
+    phoneNumber,
     locations: ["019499ac-a1e9-7ede-b6e8-f54fdabf0ae1"],
     attributes: [
       { uid: "019cd36c-639e-7ee9-9f21-a06b1c3cf2e5", value: prescriberNpi },
@@ -108,7 +158,7 @@ async function syncContact(token, phoneNumber, firstName, lastName, prescriberNp
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('Podium contact sync error:', errorData);
+    console.error(`Podium contact sync error: | Patient: ${firstName ?? ''} ${lastName ?? ''}`, errorData);
   } else {
     console.log(`Contact synced for ${name} (${phoneNumber})`);
   }
@@ -147,6 +197,8 @@ async function getTokenID() {
 
 async function callPodium(messageBody){
 
+  const patientTag = ` | Patient: ${messageBody.firstName ?? ''} ${messageBody.lastName ?? ''}`;
+
   try {
     // Get fresh access token
     const token = await getTokenID();
@@ -181,14 +233,14 @@ async function callPodium(messageBody){
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Podium API error:', errorData);
+      console.error(`Podium API error:${patientTag}`, errorData);
     }
 
     else{
       const saveMsg = await saveMessage(messageBody);
 
       if (!saveMsg.success) {
-        console.error('Failed to save message:', saveMsg.error);
+        console.error(`Failed to save message:${patientTag}`, saveMsg.error);
       }
 
       syncContact(token,
@@ -198,7 +250,7 @@ async function callPodium(messageBody){
           messageBody.prescriberNpi,
           messageBody.prescriberFirstName,
           messageBody.prescriberLastName)
-          .catch(err => console.error('Contact sync failed (non-critical):', err));
+          .catch(err => console.error(`Contact sync failed (non-critical):${patientTag}`, err));
     }
 
     return {
@@ -206,7 +258,7 @@ async function callPodium(messageBody){
     };
 
   } catch (error) {
-    console.error(error);
+    console.error(`${patientTag}`, error);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: error.message })
