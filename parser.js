@@ -11,6 +11,9 @@ export function eventParser(event) {
 
             const eventBody = JSON.parse(record.body);
 
+            // Full raw PioneerRx event for inspection/debugging
+            console.log(`Raw PioneerRx event: ${JSON.stringify(eventBody)}`);
+
             const firstName = eventBody?.data?.Body?.Patient?.Name?.FirstName;
             const lastName = eventBody?.data?.Body?.Patient?.Name?.LastName;
             messageBody["firstName"] = firstName;
