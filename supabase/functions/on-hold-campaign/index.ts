@@ -11,11 +11,16 @@ const PODIUM_LOCATION_UID = Deno.env.get("PODIUM_LOCATION_UID")!;
 
 const PODIUM_BASE_URL = "https://api.podium.com/v4";
 const ON_HOLD_REMINDER_FALLBACK =
-  "You have 1 or more prescriptions on hold at CompoundRx Pharmacy. Please reply or call to let us know how you'd like to proceed.";
+  "You have 1 or more prescriptions on hold at CompoundRx Pharmacy. Please reply or call to let us know how you'd like to proceed. Reply NOT INTERESTED to stop these messages.";
 const ON_HOLD_FINAL_FALLBACK =
-  "This is a final reminder that you have 1 or more prescriptions on hold at CompoundRx Pharmacy. If we don't hear back, we'll close out your request. Please reply or call.";
+  "This is a final reminder that you have 1 or more prescriptions on hold at CompoundRx Pharmacy. If we don't hear back, we'll close out your request. Please reply or call. Reply NOT INTERESTED to stop these messages.";
 const UNSUBSCRIBE_CONFIRMATION =
   "You've been removed from on-hold prescription notifications. Contact us anytime if you need help.";
+
+// Keywords that unsubscribe a patient (matched case-insensitively as a
+// substring of the inbound message). Spanish "no interesada" is included so
+// female patients who reply naturally also opt out.
+const STOP_KEYWORDS = ["not interested", "no interesado", "no interesada"];
 
 // A patient's first REMINDERS_BEFORE_FINAL texts use the standard reminder;
 // the next one (their final text before the 1-month TTL removes them) uses the
@@ -194,7 +199,9 @@ async function handleStop(supabase: SupabaseClient, req: Request): Promise<Respo
     return json({ error: "Missing phone number" }, 400);
   }
 
-  if (!message || !message.toLowerCase().includes("not interested")) {
+  const lowerMessage = message?.toLowerCase() ?? "";
+  const isStop = STOP_KEYWORDS.some((keyword) => lowerMessage.includes(keyword));
+  if (!isStop) {
     console.log("Message not STOP");
     return json({ Success: "All good" }, 200);
   }
