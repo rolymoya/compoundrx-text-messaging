@@ -27,17 +27,23 @@ export function eventParser(event) {
             const trackingLink = eventBody?.data?.Body?.Rx?.TrackingNumber;
             const directionsLink = '8740 N Kendall Drive Suite 106, Miami, FL 33176';
             const prescriberNpi = eventBody?.data?.Body?.Prescribers?.Prescriber[0]?.Identification?.NPI;
+            const prescriberFirstName = eventBody?.data?.Body?.Prescribers?.Prescriber[0]?.Name?.FirstName;
+            const prescriberLastName = eventBody?.data?.Body?.Prescribers?.Prescriber[0]?.Name?.LastName;
             const notifyTypeText = eventBody?.data?.Body?.Patient?.RxNotifyTypeText;
             const rxId = eventBody?.data?.Body?.Rx?.RxPioneerRxID;
+            const rxStatus = eventBody?.data?.Body?.Rx?.CurrentRxStatusText;
 
             messageBody["condition"] = condition;
             messageBody["templateParams"] = { firstName, trackingLink, directionsLink };
             messageBody["phoneNumber"] = patientPhoneNumber;
             messageBody["prescriberNpi"] = prescriberNpi;
+            messageBody["prescriberFirstName"] = prescriberFirstName;
+            messageBody["prescriberLastName"] = prescriberLastName;
             messageBody["patientId"] = eventBody?.data?.Body?.Patient?.Identification?.PatientPioneerRxID;
             messageBody["messageId"] = getMessageId(rxTransactionStatus);
             messageBody["notifyTypeText"] = notifyTypeText;
             messageBody["rxId"] = rxId
+            messageBody["rxStatus"] = rxStatus
 
             messageBodies.push(messageBody);
 
@@ -53,13 +59,24 @@ export function eventParser(event) {
 
 function renderTemplate(template, params) {
     return template.replace(/\{(\w+)\}/g, (_, key) => params[key] ?? '');
-  }
+}
 
 export function getMessage(condition, params, templates = null) {
     const templateSource = templates || defaultTemplates;
     const template = templateSource[condition];
     if (!template) throw new Error(`No template found for ${condition}`);
     return renderTemplate(template, params);
+}
+
+// On-hold is signalled by the Rx's current status (CurrentRxStatusText, e.g.
+// "On Hold") combined with a Cancelled transaction status. The event type
+// prefix varies (StatusChange vs SavedChange, either can be the real one), so
+// we match the condition on "Cancelled" rather than the full condition string.
+export function isOnHoldEvent(rxStatus, condition) {
+    return Boolean(
+        rxStatus && rxStatus.toLowerCase().includes('on hold') &&
+        condition && condition.toLowerCase().includes('cancelled')
+    );
 }
 
 function getMessageId(rxTransactionStatus) {
