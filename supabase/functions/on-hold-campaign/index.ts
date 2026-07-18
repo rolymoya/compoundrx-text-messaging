@@ -11,11 +11,11 @@ const PODIUM_LOCATION_UID = Deno.env.get("PODIUM_LOCATION_UID")!;
 
 const PODIUM_BASE_URL = "https://api.podium.com/v4";
 const ON_HOLD_REMINDER_FALLBACK =
-    "You have 1 or more prescriptions on hold at CompoundRx Pharmacy. Please reply or call to let us know how you'd like to proceed.";
+  "You have 1 or more prescriptions on hold at CompoundRx Pharmacy. Please reply or call to let us know how you'd like to proceed.";
 const ON_HOLD_FINAL_FALLBACK =
-    "This is a final reminder that you have 1 or more prescriptions on hold at CompoundRx Pharmacy. If we don't hear back, we'll close out your request. Please reply or call.";
+  "This is a final reminder that you have 1 or more prescriptions on hold at CompoundRx Pharmacy. If we don't hear back, we'll close out your request. Please reply or call.";
 const UNSUBSCRIBE_CONFIRMATION =
-    "You've been removed from on-hold prescription notifications. Contact us anytime if you need help.";
+  "You've been removed from on-hold prescription notifications. Contact us anytime if you need help.";
 
 // A patient's first REMINDERS_BEFORE_FINAL texts use the standard reminder;
 // the next one (their final text before the 1-month TTL removes them) uses the
@@ -26,10 +26,10 @@ async function getOnHoldTemplates(
   supabase: SupabaseClient,
 ): Promise<{ standard: string | null; final: string | null }> {
   const { data, error } = await supabase
-      .from("messaging_groups")
-      .select("templates")
-      .eq("name", "default")
-      .single();
+    .from("messaging_groups")
+    .select("templates")
+    .eq("name", "default")
+    .single();
 
   if (error || !data) {
     console.error("Failed to fetch On_Hold_Campaign templates:", error);
@@ -78,8 +78,8 @@ async function sendPodiumMessage(token: string, phoneNumber: string, message: st
   const payload = {
     locationUid: PODIUM_LOCATION_UID,
     body: message,
-    //For now, Roly's phone number
-    channel: { type: "phone", identifier: "7866129167" },
+    //For now, Vince's phone number
+    channel: { type: "phone", identifier: "3053979188" },
   };
 
   const res = await fetch(`${PODIUM_BASE_URL}/messages`, {
@@ -105,8 +105,8 @@ async function runCampaign(supabase: SupabaseClient): Promise<Response> {
   console.log("Starting on-hold campaign...");
 
   const { data: patients, error } = await supabase
-      .from("on_hold_patients")
-      .select("*");
+    .from("on_hold_patients")
+    .select("*");
 
   if (error) {
     console.error("Failed to fetch on-hold patients:", error);
@@ -151,9 +151,9 @@ async function runCampaign(supabase: SupabaseClient): Promise<Response> {
         // Only advance the counter on a successful send so a failed message is
         // retried (same message) on the next run rather than being skipped.
         const { error: updateError } = await supabase
-            .from("on_hold_patients")
-            .update({ sent_count: sentCount + 1 })
-            .eq("patient_id", patient.patient_id);
+          .from("on_hold_patients")
+          .update({ sent_count: sentCount + 1 })
+          .eq("patient_id", patient.patient_id);
         if (updateError) {
           console.error(`Failed to increment sent_count for ${patient.patient_id}:`, updateError);
         }
@@ -184,7 +184,7 @@ async function handleStop(supabase: SupabaseClient, req: Request): Promise<Respo
   }
 
   const phoneNumber = body?.data?.conversation?.channel?.identifier;
-  const message: string= body?.data?.body;
+  const message: string = body?.data?.body;
 
   // console.log(phoneNumber);
   // console.log(message);
@@ -196,14 +196,14 @@ async function handleStop(supabase: SupabaseClient, req: Request): Promise<Respo
 
   if (!message || !message.toLowerCase().includes("not interested")) {
     console.log("Message not STOP");
-    return json({Success: "All good"}, 200);
+    return json({ Success: "All good" }, 200);
   }
 
   const { data, error } = await supabase
-      .from("on_hold_patients")
-      .delete()
-      .eq("phone_number", phoneNumber)
-      .select();
+    .from("on_hold_patients")
+    .delete()
+    .eq("phone_number", phoneNumber)
+    .select();
 
   if (error) {
     console.error("Failed to delete on-hold patient:", error);
