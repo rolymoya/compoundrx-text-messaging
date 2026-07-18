@@ -131,12 +131,14 @@ async function updateRecord(tableName, id, updates) {
   }
 }
 
-// The "prescription received" text corresponds to the WaitingforPrint Rx
-// transaction status. recent_messages stores the full composite condition
-// (eventType_rxTransactionStatus_priorityType), so we match on the status
-// segment to catch every priority-type variant.
-const PRESCRIPTION_RECEIVED_STATUS = 'WaitingforPrint';
-const PRESCRIPTION_RECEIVED_LOOKBACK_DAYS = 30;
+// TEMPORARY — first week of launch. Older recent_messages rows predate the
+// `condition` column, so we match on message_id instead to catch backed-up
+// patients. The "prescription received" text spans two statuses: WaitingforCheck
+// (message_id 1, older) and WaitingforPrint (message_id 0, after the switch).
+// Lookback is widened to 60 days for the catch-up.
+// REVERT after launch to: condition ilike %WaitingforPrint%, 30-day lookback.
+const PRESCRIPTION_RECEIVED_MESSAGE_IDS = [0, 1];
+const PRESCRIPTION_RECEIVED_LOOKBACK_DAYS = 60;
 
 // Returns true if the patient was sent the "prescription received" text within
 // the lookback window. Used to gate on-hold campaign enrollment so we only
@@ -151,7 +153,7 @@ export async function hasRecentPrescriptionReceived(patientId) {
       .from('recent_messages')
       .select('id')
       .eq('patient_id', patientId)
-      .ilike('condition', `%${PRESCRIPTION_RECEIVED_STATUS}%`)
+      .in('message_id', PRESCRIPTION_RECEIVED_MESSAGE_IDS)
       .gte('created_at', lookback)
       .limit(1);
 
