@@ -10,12 +10,14 @@ const PODIUM_REFRESH_TOKEN = Deno.env.get("PODIUM_REFRESH_TOKEN")!;
 const PODIUM_LOCATION_UID = Deno.env.get("PODIUM_LOCATION_UID")!;
 
 const PODIUM_BASE_URL = "https://api.podium.com/v4";
+// Fallbacks mirror the On_Hold_Campaign / On_Hold_Campaign_Final DB templates
+// (bilingual, with opt-out) so a fallback send matches the intended message.
 const ON_HOLD_REMINDER_FALLBACK =
-  "You have 1 or more prescriptions on hold at CompoundRx Pharmacy. Please reply or call to let us know how you'd like to proceed. Reply NOT INTERESTED to stop these messages.";
+  "Hi {firstName}, CompoundRx Pharmacy received your prescription and it's currently on hold. If you'd like us to fill it, simply reply to this message. We're here if you have any questions. Reply NOT INTERESTED to stop these messages.\n\nHola {firstName}, CompoundRx Pharmacy recibió tu receta y por el momento está en espera. Si deseas que la preparemos, simplemente responde a este mensaje. Estamos aquí para ayudarte si tienes alguna pregunta. Responde NO INTERESADO para dejar de recibir estos mensajes.";
 const ON_HOLD_FINAL_FALLBACK =
-  "This is a final reminder that you have 1 or more prescriptions on hold at CompoundRx Pharmacy. If we don't hear back, we'll close out your request. Please reply or call. Reply NOT INTERESTED to stop these messages.";
+  "Hi {firstName}, CompoundRx Pharmacy received your prescription and it is still on hold. This is our final follow-up in case you'd like us to fill it. Simply reply to this message and we'll take care of the rest. We're here if you have any questions. Reply NOT INTERESTED to stop these messages.\n\nHola {firstName}, CompoundRx Pharmacy recibió tu receta y aún está en espera. Este es nuestro último seguimiento en caso de que desees que la preparemos. Simplemente responde a este mensaje y nos encargaremos del resto. Estamos aquí para ayudarte si tienes alguna pregunta. Responde NO INTERESADO para dejar de recibir estos mensajes.";
 const UNSUBSCRIBE_CONFIRMATION =
-  "You've been removed from on-hold prescription notifications. Contact us anytime if you need help.";
+  "You've been removed from on-hold prescription notifications. Contact us anytime if you need help.\n\nYa no recibirás notificaciones sobre recetas en espera. Contáctanos cuando quieras si necesitas ayuda.";
 
 // Keywords that unsubscribe a patient (matched case-insensitively as a
 // substring of the inbound message). Spanish "no interesada" is included so
