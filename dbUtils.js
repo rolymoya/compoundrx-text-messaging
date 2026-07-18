@@ -131,8 +131,46 @@ async function updateRecord(tableName, id, updates) {
   }
 }
 
+// The "prescription received" text corresponds to the WaitingforPrint Rx
+// transaction status. recent_messages stores the full composite condition
+// (eventType_rxTransactionStatus_priorityType), so we match on the status
+// segment to catch every priority-type variant.
+const PRESCRIPTION_RECEIVED_STATUS = 'WaitingforPrint';
+const PRESCRIPTION_RECEIVED_LOOKBACK_DAYS = 10;
+
+// Returns true if the patient was sent the "prescription received" text within
+// the lookback window. Used to gate on-hold campaign enrollment so we only
+// remind patients whose prescription was recently received.
+export async function hasRecentPrescriptionReceived(patientId) {
+  try {
+    const lookback = new Date(
+      Date.now() - PRESCRIPTION_RECEIVED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    const { data, error } = await supabase
+      .from('recent_messages')
+      .select('id')
+      .eq('patient_id', patientId)
+      .ilike('condition', `%${PRESCRIPTION_RECEIVED_STATUS}%`)
+      .gte('created_at', lookback)
+      .limit(1);
+
+    if (error) {
+      console.error('Database error checking recent prescription-received message:', error);
+      throw error; // Let caller handle the error
+    }
+
+    return data.length > 0;
+  } catch (error) {
+    console.error('Error checking recent prescription-received message:', error.message);
+    throw error; // Re-throw so caller knows something went wrong
+  }
+}
+
 // Save a patient with an on-hold prescription.
-// Upsert resets created_at so the 1-month TTL restarts on repeat on-hold events.
+// If the patient already has an ongoing campaign (already in the table), do
+// nothing: ignoreDuplicates leaves the existing row and its created_at/TTL
+// untouched so a repeat on-hold event doesn't restart or extend the campaign.
 export async function saveOnHoldPatient(patientId, phoneNumber, firstName) {
   try {
     const { data, error } = await supabase
@@ -144,12 +182,16 @@ export async function saveOnHoldPatient(patientId, phoneNumber, firstName) {
           first_name: firstName,
           created_at: new Date().toISOString()
         },
-        { onConflict: 'patient_id' }
+        { onConflict: 'patient_id', ignoreDuplicates: true }
       )
       .select();
 
     if (error) throw error;
-    console.log(`Saved on-hold patient: ${patientId}`);
+    if (data && data.length > 0) {
+      console.log(`Saved on-hold patient: ${patientId}`);
+    } else {
+      console.log(`On-hold patient already has an ongoing campaign, skipping: ${patientId}`);
+    }
     return { success: true, data };
   } catch (error) {
     console.error('Error saving on-hold patient:', error.message);

@@ -31,6 +31,7 @@ export function eventParser(event) {
             const prescriberLastName = eventBody?.data?.Body?.Prescribers?.Prescriber[0]?.Name?.LastName;
             const notifyTypeText = eventBody?.data?.Body?.Patient?.RxNotifyTypeText;
             const rxId = eventBody?.data?.Body?.Rx?.RxPioneerRxID;
+            const rxStatus = eventBody?.data?.Body?.Rx?.CurrentRxStatusText;
 
             messageBody["condition"] = condition;
             messageBody["templateParams"] = { firstName, trackingLink, directionsLink };
@@ -42,6 +43,7 @@ export function eventParser(event) {
             messageBody["messageId"] = getMessageId(rxTransactionStatus);
             messageBody["notifyTypeText"] = notifyTypeText;
             messageBody["rxId"] = rxId
+            messageBody["rxStatus"] = rxStatus
 
             messageBodies.push(messageBody);
 
@@ -66,9 +68,15 @@ export function getMessage(condition, params, templates = null) {
     return renderTemplate(template, params);
 }
 
-// TODO: Update this once the actual on-hold event shape is known
-export function isOnHoldEvent(condition) {
-    return condition && condition.toLowerCase().includes('onhold');
+// On-hold is signalled by the Rx's current status (CurrentRxStatusText, e.g.
+// "On Hold") combined with a Cancelled transaction status. The event type
+// prefix varies (StatusChange vs SavedChange, either can be the real one), so
+// we match the condition on "Cancelled" rather than the full condition string.
+export function isOnHoldEvent(rxStatus, condition) {
+    return Boolean(
+        rxStatus && rxStatus.toLowerCase().includes('on hold') &&
+        condition && condition.toLowerCase().includes('cancelled')
+    );
 }
 
 function getMessageId(rxTransactionStatus) {

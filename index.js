@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import { eventParser, getMessage, isOnHoldEvent } from './parser.js';
 import { readIdsFromS3Env } from './s3FileReader.js';
-import { isDuplicateMessage, saveMessage, getTemplatesForNpi, saveOnHoldPatient } from './dbUtils.js';
+import { isDuplicateMessage, saveMessage, getTemplatesForNpi, saveOnHoldPatient, hasRecentPrescriptionReceived } from './dbUtils.js';
 
 const baseUrl = "https://api.podium.com/v4/";
 const refreshToken = process.env.REFRESHTOKEN;
@@ -70,8 +70,17 @@ async function processMessage(messageBody) {
 
   // Check if this is an on-hold event — save patient and return. Not gated by
   // the send window since this only persists state, it doesn't send a text.
-  if (isOnHoldEvent(messageBody.condition)) {
+  if (isOnHoldEvent(messageBody.rxStatus, messageBody.condition)) {
     console.log(`On-hold event detected for patient ${messageBody.patientId}${patientTag}`);
+
+    // Only start the campaign if the patient recently got the "prescription
+    // received" text, so we don't remind patients with no recent activity.
+    const hasReceived = await hasRecentPrescriptionReceived(messageBody.patientId);
+    if (!hasReceived) {
+      console.log(`No recent 'prescription received' text, not starting on-hold campaign.${patientTag}`);
+      return { statusCode: 200 };
+    }
+
     const result = await saveOnHoldPatient(
       messageBody.patientId,
       messageBody.phoneNumber,

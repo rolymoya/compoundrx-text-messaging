@@ -4,8 +4,15 @@ CREATE TABLE on_hold_patients (
     patient_id TEXT NOT NULL UNIQUE,
     phone_number TEXT NOT NULL,
     first_name TEXT,
+    -- Number of campaign texts already sent to this patient. Drives which
+    -- template they get: first 3 texts use the standard reminder, the next
+    -- uses the final notice.
+    sent_count INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- For an already-deployed table, add the column instead:
+-- ALTER TABLE on_hold_patients ADD COLUMN IF NOT EXISTS sent_count INTEGER NOT NULL DEFAULT 0;
 
 -- Index for phone number lookups (STOP webhook deletes by phone)
 CREATE INDEX idx_on_hold_patients_phone ON on_hold_patients (phone_number);
