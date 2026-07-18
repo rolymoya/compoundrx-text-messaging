@@ -4,6 +4,7 @@
   "description": "A Podium demo app for CRUD messages",
   "main": "index.js",
   "scripts": {
+    "build": "bash build.sh",
     "lint": "yarn eslint . --ext .js",
     "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
     "format": "prettier --write .",
