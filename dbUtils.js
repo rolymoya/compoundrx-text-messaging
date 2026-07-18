@@ -136,7 +136,7 @@ async function updateRecord(tableName, id, updates) {
 // (eventType_rxTransactionStatus_priorityType), so we match on the status
 // segment to catch every priority-type variant.
 const PRESCRIPTION_RECEIVED_STATUS = 'WaitingforPrint';
-const PRESCRIPTION_RECEIVED_LOOKBACK_DAYS = 10;
+const PRESCRIPTION_RECEIVED_LOOKBACK_DAYS = 30;
 
 // Returns true if the patient was sent the "prescription received" text within
 // the lookback window. Used to gate on-hold campaign enrollment so we only
