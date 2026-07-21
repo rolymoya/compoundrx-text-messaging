@@ -85,8 +85,7 @@ async function sendPodiumMessage(token: string, phoneNumber: string, message: st
   const payload = {
     locationUid: PODIUM_LOCATION_UID,
     body: message,
-    //For now, Vince's phone number
-    channel: { type: "phone", identifier: "3053979188" },
+    channel: { type: "phone", identifier: phoneNumber },
   };
 
   const res = await fetch(`${PODIUM_BASE_URL}/messages`, {
