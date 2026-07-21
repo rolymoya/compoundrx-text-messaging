@@ -107,8 +107,12 @@ async function sendPodiumMessage(token: string, phoneNumber: string, message: st
   return true;
 }
 
-async function runCampaign(supabase: SupabaseClient): Promise<Response> {
-  console.log("Starting on-hold campaign...");
+// replay = true re-sends to everyone in on_hold_patients using their current
+// sent_count to choose the message, but does NOT advance sent_count. Used by
+// the manual replay script to re-send without pushing patients toward the
+// final notice / removal.
+async function runCampaign(supabase: SupabaseClient, replay = false): Promise<Response> {
+  console.log(replay ? "Starting on-hold campaign REPLAY (sent_count unchanged)..." : "Starting on-hold campaign...");
 
   const { data: patients, error } = await supabase
     .from("on_hold_patients")
@@ -156,12 +160,15 @@ async function runCampaign(supabase: SupabaseClient): Promise<Response> {
         sent++;
         // Only advance the counter on a successful send so a failed message is
         // retried (same message) on the next run rather than being skipped.
-        const { error: updateError } = await supabase
-          .from("on_hold_patients")
-          .update({ sent_count: sentCount + 1 })
-          .eq("patient_id", patient.patient_id);
-        if (updateError) {
-          console.error(`Failed to increment sent_count for ${patient.patient_id}:`, updateError);
+        // Replay re-sends without advancing the counter.
+        if (!replay) {
+          const { error: updateError } = await supabase
+            .from("on_hold_patients")
+            .update({ sent_count: sentCount + 1 })
+            .eq("patient_id", patient.patient_id);
+          if (updateError) {
+            console.error(`Failed to increment sent_count for ${patient.patient_id}:`, updateError);
+          }
         }
       } else {
         failed++;
@@ -172,8 +179,8 @@ async function runCampaign(supabase: SupabaseClient): Promise<Response> {
     }
   }
 
-  console.log(`On-hold campaign complete: ${sent} sent, ${failed} failed`);
-  return json({ sent, failed });
+  console.log(`On-hold campaign ${replay ? "replay " : ""}complete: ${sent} sent, ${failed} failed`);
+  return json({ replay, sent, failed });
 }
 
 async function handleStop(supabase: SupabaseClient, req: Request): Promise<Response> {
@@ -244,8 +251,11 @@ serve(async (req) => {
       return await handleStop(supabase, req);
     }
 
-    // Default (cron trigger) → /on-hold-campaign
-    return await runCampaign(supabase);
+    // Default (cron trigger) → /on-hold-campaign. A body of { "replay": true }
+    // (sent by the manual replay script) re-sends without advancing sent_count.
+    const body = await req.json().catch(() => ({}));
+    const replay = body?.replay === true;
+    return await runCampaign(supabase, replay);
   } catch (error) {
     console.error("Edge function error:", error);
     return json({ error: (error as Error).message }, 500);
