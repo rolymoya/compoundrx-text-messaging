@@ -74,10 +74,11 @@ async function processMessage(messageBody) {
     console.log(`On-hold event detected for patient ${messageBody.patientId}${patientTag}`);
 
     // Only start the campaign if the patient recently got the "prescription
-    // received" text, so we don't remind patients with no recent activity.
-    const hasReceived = await hasRecentPrescriptionReceived(messageBody.patientId);
+    // received" text for THIS same prescription, so we don't remind patients
+    // with no recent activity or for a different Rx.
+    const hasReceived = await hasRecentPrescriptionReceived(messageBody.patientId, messageBody.rxId);
     if (!hasReceived) {
-      console.log(`No recent 'prescription received' text, not starting on-hold campaign.${patientTag}`);
+      console.log(`No recent 'prescription received' text for this Rx, not starting on-hold campaign.${patientTag}`);
       return { statusCode: 200 };
     }
 

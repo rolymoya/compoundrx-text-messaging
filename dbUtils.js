@@ -137,13 +137,15 @@ async function updateRecord(tableName, id, updates) {
 // (message_id 1, older) and WaitingforPrint (message_id 0, after the switch).
 // Lookback is widened to 60 days for the catch-up.
 // REVERT after launch to: condition ilike %WaitingforPrint%, 30-day lookback.
+// (Keep the rx_id match below when reverting.)
 const PRESCRIPTION_RECEIVED_MESSAGE_IDS = [0, 1];
 const PRESCRIPTION_RECEIVED_LOOKBACK_DAYS = 60;
 
-// Returns true if the patient was sent the "prescription received" text within
-// the lookback window. Used to gate on-hold campaign enrollment so we only
-// remind patients whose prescription was recently received.
-export async function hasRecentPrescriptionReceived(patientId) {
+// Returns true if the patient was sent the "prescription received" text for THIS
+// prescription (rx_id) within the lookback window. Used to gate on-hold campaign
+// enrollment so we only remind patients whose prescription was recently received
+// — and only for the same Rx that's now going on hold.
+export async function hasRecentPrescriptionReceived(patientId, rxId) {
   try {
     const lookback = new Date(
       Date.now() - PRESCRIPTION_RECEIVED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
@@ -153,6 +155,7 @@ export async function hasRecentPrescriptionReceived(patientId) {
       .from('recent_messages')
       .select('id')
       .eq('patient_id', patientId)
+      .eq('rx_id', rxId)
       .in('message_id', PRESCRIPTION_RECEIVED_MESSAGE_IDS)
       .gte('created_at', lookback)
       .limit(1);
